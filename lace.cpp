@@ -125,22 +125,18 @@ void onMouse(int event, int x, int y, int, void* param)
     if (event != cv::EVENT_LBUTTONDOWN)
         return;
 
-    std::vector<cv::Mat>* image = (std::vector<cv::Mat>*)param;
+    cv::Mat* image = (cv::Mat*)param;
 
     cv::Point seedPoint = cv::Point(x, y);
-
-    cv::Mat clustered = image->at(0);
-    cv::Mat winnie = image->at(1);
-
     cv::Mat floodImage = floodFill;
     cv::Mat floodMask = cv::Mat::zeros(cv::Size(floodImage.size().width + 2, floodImage.size().height + 2), CV_8U);
     cv::Rect tolerance = cv::Rect(0, 0, 0, 0);
     cv::floodFill(floodImage, floodMask, seedPoint, cv::Scalar(255), &tolerance, cv::Scalar(0), cv::Scalar(0), CV_FLOODFILL_FIXED_RANGE);
 
-    cv::Mat result = addDottedBackground(winnie, floodImage);
+    cv::Mat result = addDottedBackground(*image, floodImage);
 
-    cv::imshow("flood", floodImage);
-    cv::imshow("test", result);
+    // cv::imshow("flood", floodImage);
+    cv::imshow("dotted", result);
 };
 
 int main(int argc, char **argv)
@@ -154,20 +150,16 @@ int main(int argc, char **argv)
 
     logMat(clustered);
 
-    cv::imshow("clustered", clustered);
+    cv::imshow("source", winnie);
 
     // Add initial dotted background
     cv::Mat dotted = addDottedBackground(winnie);
 
     cv::imshow("dotted", dotted);
 
-    std::vector<cv::Mat> images;
-    images.push_back(clustered);
-    images.push_back(winnie);
-
     floodFill = clustered.clone();
 
-    cv::setMouseCallback("clustered", onMouse, (void*)&images);
+    cv::setMouseCallback("source", onMouse, (void*)&winnie);
 
     cv::waitKey(0); // Wait for a keystroke in the window
 
