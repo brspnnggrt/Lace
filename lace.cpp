@@ -7,6 +7,8 @@
 #include <vector>
 #include <opencv2\core.hpp>
 
+cv::Mat floodFill;
+
 cv::String type2str(int type) {
   cv::String r;
 
@@ -78,52 +80,67 @@ cv::Mat runkMeans(cv::Mat winnie, int k)
     return clustered;
 }
 
+cv::Mat addDottedBackground(cv::Mat source, cv::Mat ignoreWhereWhite = cv::Mat::zeros(0, 0, CV_8U)) 
+{
+    if (source.size() != ignoreWhereWhite.size()) {
+        ignoreWhereWhite = cv::Mat::zeros(source.size(), CV_8U);
+    }
+
+    cv::Mat image = source.clone();
+
+    int spacing_rows = 16;
+    int spacing_columns = 32;
+    int size = 2;
+
+    bool drawCircle = false;
+
+    for (int r = 0; r < image.size().height; r++)
+    {
+        for (int c = 0; c < image.size().width; c++)
+        {
+            drawCircle = false;
+
+            if (r % spacing_rows == 0)
+                if (c % spacing_columns == 0)
+                    drawCircle = true;
+
+            if (r % spacing_rows == spacing_rows / 2)
+                if (c % spacing_columns == spacing_columns / 2)
+                    drawCircle = true;
+
+            if (drawCircle) 
+            {
+                cv::Point point = cv::Point(c + spacing_columns / 2, r + spacing_rows / 2);
+                if (ignoreWhereWhite.at<uchar>(point) != 255)
+                    cv::circle(image, point, size, cv::Scalar(0, 0, 0, 255), -1, cv::LINE_AA);
+            }
+        }
+    }
+
+    return image;
+}
+
 void onMouse(int event, int x, int y, int, void* param) 
 {
     if (event != cv::EVENT_LBUTTONDOWN)
         return;
 
-    cv::Mat* winnie = (cv::Mat*)param;
+    std::vector<cv::Mat>* image = (std::vector<cv::Mat>*)param;
 
-    cv::Point point = cv::Point(x, y);
+    cv::Point seedPoint = cv::Point(x, y);
 
-    cv::Mat greyScale;
-    cv::cvtColor(*winnie, greyScale, cv::COLOR_RGBA2GRAY);
+    cv::Mat clustered = image->at(0);
+    cv::Mat winnie = image->at(1);
 
-    std::vector<std::vector<cv::Point>> contours;
-    std::vector<cv::Vec4i> hierarchy;
-    cv::findContours(greyScale, contours, hierarchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
+    cv::Mat floodImage = floodFill;
+    cv::Mat floodMask = cv::Mat::zeros(cv::Size(floodImage.size().width + 2, floodImage.size().height + 2), CV_8U);
+    cv::Rect tolerance = cv::Rect(0, 0, 0, 0);
+    cv::floodFill(floodImage, floodMask, seedPoint, cv::Scalar(255), &tolerance, cv::Scalar(0), cv::Scalar(0), CV_FLOODFILL_FIXED_RANGE);
 
-    cv::Mat dst = cv::Mat::zeros(greyScale.rows, greyScale.cols, CV_8U);
+    cv::Mat result = addDottedBackground(winnie, floodImage);
 
-    // cv::grabCut(greyScale, dst, cv::Rect(point, cv::Point(20,30)), dst, dst, 5, cv::GC_INIT_WITH_RECT);
-
-
-    // int idx = 0;
-    // for (; idx >= 0; idx = hierarchy[idx][0])
-    // {
-    //     cv::Scalar color(rand() & 255, rand() & 255, rand() & 255);
-
-    //     auto points = contours[idx];
-    //     for (int i = 0; i < points.size(); i++)
-    //     {
-    //         auto currentPoint = points[i];
-    //         if (currentPoint.x == point.x && currentPoint.y == point.y) 
-    //         {
-    //             cv::drawContours(dst, contours, idx, color, CV_FILLED, 8, hierarchy);
-    //         }
-    //     }
-        
-    //     size_t length = points.size();
-    //     // if (length == 4)
-    //     cv::drawContours(dst, contours, idx, color, CV_FILLED, 8, hierarchy);
-    // }
-
-    // cv::namedWindow("Original", 1);
-    // cv::imshow("Original", *winnie);
-
-    // cv::namedWindow("Components", 1);
-    // cv::imshow("Components", dst);
+    cv::imshow("flood", floodImage);
+    cv::imshow("test", result);
 };
 
 int main(int argc, char **argv)
@@ -139,52 +156,18 @@ int main(int argc, char **argv)
 
     cv::imshow("clustered", clustered);
 
-    cv::Mat floodImage = clustered.clone();
-    cv::Mat floodMask = cv::Mat::zeros(cv::Size(floodImage.size().width + 2, floodImage.size().height + 2), CV_8U);
-    cv::Point seedPoint = cv::Point(0, 0);
-    cv::Rect tolerance = cv::Rect(0, 0, 0, 0);
-    cv::floodFill(floodImage, floodMask, seedPoint, cv::Scalar(1), &tolerance, cv::Scalar(0), cv::Scalar(0), CV_FLOODFILL_FIXED_RANGE);
+    // Add initial dotted background
+    cv::Mat dotted =  addDottedBackground(winnie);
 
-    cv::imshow("test", floodImage);
+    cv::imshow("dotted", dotted);
 
-    // Add background
+    std::vector<cv::Mat> images;
+    images.push_back(clustered);
+    images.push_back(winnie);
 
-    // cv::Mat winnieDotted = winnie.clone();
+    floodFill = clustered.clone();
 
-    // int spacing_rows = 16;
-    // int spacing_columns = 32;
-    // int size = 2;
-
-    // for (int r = 0; r < winnieDotted.size().height; r++)
-    // {
-    //     for (int c = 0; c < winnieDotted.size().width; c++)
-    //     {
-    //         if (r % spacing_rows == 0)
-    //         {
-    //             if (c % spacing_columns == 0)
-    //             {
-    //                 cv::circle(winnieDotted, cv::Point(c + spacing_columns / 2, r + spacing_rows / 2), size, cv::Scalar(0, 0, 0, 255), -1, cv::LINE_AA);
-    //             }
-    //         }
-    //         if (r % spacing_rows == spacing_rows / 2)
-    //         {
-    //             if (c % spacing_columns == spacing_columns / 2)
-    //             {
-    //                 cv::circle(winnieDotted, cv::Point(c + spacing_columns / 2, r + spacing_rows / 2), size, cv::Scalar(0, 0, 0, 255), -1, cv::LINE_AA);
-    //             }
-    //         }
-    //     }
-    // }
-
-    // cv::Mat labelsImg = labels.reshape(1, winnie.size().height);
-
-    // namedWindow("Display window", cv::WINDOW_AUTOSIZE); // Create a window for display.
-    // imshow("Display window", labelsImg);             // Show our image inside it.
-
-    // namedWindow("Display window2", cv::WINDOW_AUTOSIZE); // Create a window for display.
-    // imshow("Display window2", winnie);             // Show our image inside it.
-
-    cv::setMouseCallback("Display window", onMouse, (void*)&winnie);
+    cv::setMouseCallback("clustered", onMouse, (void*)&images);
 
     cv::waitKey(0); // Wait for a keystroke in the window
 
