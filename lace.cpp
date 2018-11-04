@@ -5,6 +5,36 @@
 #include <direct.h>
 #include <opencv2\opencv.hpp>
 #include <vector>
+#include <opencv2\core.hpp>
+
+cv::String type2str(int type) {
+  cv::String r;
+
+  uchar depth = type & CV_MAT_DEPTH_MASK;
+  uchar chans = 1 + (type >> CV_CN_SHIFT);
+
+  switch ( depth ) {
+    case CV_8U:  r = "8U"; break;
+    case CV_8S:  r = "8S"; break;
+    case CV_16U: r = "16U"; break;
+    case CV_16S: r = "16S"; break;
+    case CV_32S: r = "32S"; break;
+    case CV_32F: r = "32F"; break;
+    case CV_64F: r = "64F"; break;
+    default:     r = "User"; break;
+  }
+
+  r += "C";
+  r += (chans+'0');
+
+  return r;
+}
+
+void logMat(cv::Mat mat) 
+{
+    cv::String ty = type2str(mat.type());
+    printf("Matrix: %s %dx%d \n", ty.c_str(), mat.cols, mat.rows );
+}
 
 cv::Mat3b loadImage(cv::String imagePath)
 {
@@ -20,6 +50,32 @@ cv::Mat3b loadImage(cv::String imagePath)
         std::cout << "Could not open or find the image" << std::endl;
     }
     return image;
+}
+
+cv::Mat runkMeans(cv::Mat winnie, int k) 
+{
+    cv::Mat samples = winnie.reshape(1, winnie.rows* winnie.cols); // change to a Nx3 column vector
+    samples.convertTo(samples, CV_32FC3, 1.0/255.0); // convert to floating point
+    logMat(samples);
+
+    cv::Mat labels, centers;
+    cv::TermCriteria criteria = cv::TermCriteria(CV_TERMCRIT_EPS|CV_TERMCRIT_ITER, 10, 1.0);
+
+    cv::kmeans(samples, k, labels, criteria, 4, cv::KMEANS_PP_CENTERS, centers);
+
+    int colors[k];
+    for (int i=0; i < sizeof(colors) / sizeof(colors[0]); i++) {
+        colors[i] = i * (255 / k);
+    }
+
+    cv::Mat clustered = cv::Mat(winnie.rows, winnie.cols, CV_32F);
+    for (int i=0; i < winnie.cols * winnie.rows; i++) {
+        clustered.at<float>(i / winnie.cols, i % winnie.cols) = (float)(colors[labels.at<int>(0,i)]);
+    }
+
+    clustered.convertTo(clustered, CV_8U);
+
+    return clustered;
 }
 
 void onMouse(int event, int x, int y, int, void* param) 
@@ -72,95 +128,61 @@ void onMouse(int event, int x, int y, int, void* param)
 
 int main(int argc, char **argv)
 {
-    // Load image and set add alpha channel
+    // Load image
     cv::Mat winnie = loadImage("winnie.png");
-    cv::cvtColor(winnie, winnie, cv::COLOR_BGR2RGBA);
+    logMat(winnie);
 
-    
+    // Run kmeans
+    cv::Mat clustered = runkMeans(winnie, 2);
 
-    // if( argc != 3)
+    logMat(clustered);
+
+    cv::imshow("clustered", clustered);
+
+    cv::Mat floodImage = clustered.clone();
+    cv::Mat floodMask = cv::Mat::zeros(cv::Size(floodImage.size().width + 2, floodImage.size().height + 2), CV_8U);
+    cv::Point seedPoint = cv::Point(0, 0);
+    cv::Rect tolerance = cv::Rect(0, 0, 0, 0);
+    cv::floodFill(floodImage, floodMask, seedPoint, cv::Scalar(1), &tolerance, cv::Scalar(0), cv::Scalar(0), CV_FLOODFILL_FIXED_RANGE);
+
+    cv::imshow("test", floodImage);
+
+    // Add background
+
+    // cv::Mat winnieDotted = winnie.clone();
+
+    // int spacing_rows = 16;
+    // int spacing_columns = 32;
+    // int size = 2;
+
+    // for (int r = 0; r < winnieDotted.size().height; r++)
     // {
-    //     std::cout <<" Usage: lace.exe image" << std::endl;
-    //     return -1;
-    // }
-
-    // Create white transparent matrix
-    // cv::Mat transparent_img = cv::Mat4b::zeros(winnie.size().height, winnie.size().width);
-
-    cv::Mat winnieDotted = winnie.clone();
-
-    int spacing_rows = 16;
-    int spacing_columns = 32;
-    int size = 2;
-
-    for (int r = 0; r < winnieDotted.size().height; r++)
-    {
-        for (int c = 0; c < winnieDotted.size().width; c++)
-        {
-            if (r % spacing_rows == 0)
-            {
-                if (c % spacing_columns == 0)
-                {
-                    cv::circle(winnieDotted, cv::Point(c + spacing_columns / 2, r + spacing_rows / 2), size, cv::Scalar(0, 0, 0, 255), -1, cv::LINE_AA);
-                }
-            }
-            if (r % spacing_rows == spacing_rows / 2)
-            {
-                if (c % spacing_columns == spacing_columns / 2)
-                {
-                    cv::circle(winnieDotted, cv::Point(c + spacing_columns / 2, r + spacing_rows / 2), size, cv::Scalar(0, 0, 0, 255), -1, cv::LINE_AA);
-                }
-            }
-        }
-    }
-
-    // for (int r = 0; r < winnie.size().height; r++) {
-    //     for (int c = 0; c < winnie.size().width; c++) {
-    //         cv::Vec4b coverpoint = transparent_img.at<cv::Vec4b>(r, c);
-    //         if (coverpoint[3] != 0)
+    //     for (int c = 0; c < winnieDotted.size().width; c++)
+    //     {
+    //         if (r % spacing_rows == 0)
     //         {
-    //             winnie.at<cv::Vec4b>(r, c) = coverpoint;
+    //             if (c % spacing_columns == 0)
+    //             {
+    //                 cv::circle(winnieDotted, cv::Point(c + spacing_columns / 2, r + spacing_rows / 2), size, cv::Scalar(0, 0, 0, 255), -1, cv::LINE_AA);
+    //             }
+    //         }
+    //         if (r % spacing_rows == spacing_rows / 2)
+    //         {
+    //             if (c % spacing_columns == spacing_columns / 2)
+    //             {
+    //                 cv::circle(winnieDotted, cv::Point(c + spacing_columns / 2, r + spacing_rows / 2), size, cv::Scalar(0, 0, 0, 255), -1, cv::LINE_AA);
+    //             }
     //         }
     //     }
     // }
 
-    // cv::Mat3b icon = loadImage("icon.png");
+    // cv::Mat labelsImg = labels.reshape(1, winnie.size().height);
 
-    // // Create a circular mask
-    // cv::Mat1b mask(775, 600, uchar(0));
-    // cv::circle(mask, cv::Point(250, 250), 500, cv::Scalar(255), cv::FILLED);
+    // namedWindow("Display window", cv::WINDOW_AUTOSIZE); // Create a window for display.
+    // imshow("Display window", labelsImg);             // Show our image inside it.
 
-    // // Or load your own mask
-    // //Mat1b mask = imread("path_to_mask", IMREAD_GRAYSCALE)
-
-    // // Compute number of repetition in x and y
-    // int nx = (mask.cols / icon.cols) + 1;
-    // int ny = (mask.rows / icon.rows) + 1;
-
-    // // Create repeated pattern
-    // cv::Mat3b repeated = repeat(icon, ny, nx);
-
-    // // Crop to meet mask size
-    // cv::Mat3b crop = repeated(cv::Rect(0, 0, mask.cols, mask.rows));
-
-    // // Create a white image same size as mask
-    // cv::Mat3b result = cv::Mat3b(mask.rows, mask.cols, cv::Vec3b(255, 255, 255));
-
-    // // Copy pattern with the mask
-    // crop.copyTo(result, mask);
-
-    // namedWindow("Display window", cv::WINDOW_AUTOSIZE);// Create a window for display.
-    // imshow("Display window", result); // Show our image inside it.
-
-    // namedWindow("Display window3", cv::WINDOW_AUTOSIZE);// Create a window for display.
-    // imshow("Display window3", winnie); // Show our image inside it.
-
-    // cv::Mat output;
-
-    // cv::add(winnie, transparent_img, output);
-
-    namedWindow("Display window", cv::WINDOW_AUTOSIZE); // Create a window for display.
-    imshow("Display window", winnieDotted);             // Show our image inside it.
+    // namedWindow("Display window2", cv::WINDOW_AUTOSIZE); // Create a window for display.
+    // imshow("Display window2", winnie);             // Show our image inside it.
 
     cv::setMouseCallback("Display window", onMouse, (void*)&winnie);
 
