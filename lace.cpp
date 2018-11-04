@@ -157,7 +157,7 @@ int main(int argc, char **argv)
     cv::imshow("clustered", clustered);
 
     // Add initial dotted background
-    cv::Mat dotted =  addDottedBackground(winnie);
+    cv::Mat dotted = addDottedBackground(winnie);
 
     cv::imshow("dotted", dotted);
 
