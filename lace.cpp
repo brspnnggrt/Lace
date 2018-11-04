@@ -5,7 +5,6 @@
 #include <direct.h>
 #include <opencv2\opencv.hpp>
 #include <vector>
-#include <opencv2\core.hpp>
 
 cv::Mat floodFill;
 
