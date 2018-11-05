@@ -111,7 +111,7 @@ cv::Mat addDottedBackground(cv::Mat source, cv::Mat ignoreWhereWhite = cv::Mat::
             {
                 cv::Point point = cv::Point(c + spacing_columns / 2, r + spacing_rows / 2);
                 if (ignoreWhereWhite.at<uchar>(point) != 255)
-                    cv::circle(image, point, size, cv::Scalar(0, 0, 0, 255), -1, cv::LINE_AA);
+                    cv::circle(image, point, size, cv::Scalar(0, 0, 255, 255), -1, cv::LINE_AA);
             }
         }
     }
