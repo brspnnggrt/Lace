@@ -8,6 +8,25 @@
             "args": [
                 "-std=c++17",
                 "-g", "${workspaceFolder}\\lace.cpp",
+                "-g", "${workspaceFolder}\\closedcv.cpp",
+                "-o", "${workspaceFolder}\\build\\lace.exe",
+                "-I", "${workspaceFolder}\\libraries\\opencv\\include",
+                "-L", "${workspaceFolder}\\libraries\\opencv\\bin",
+                "-llibopencv_core341", 
+                "-llibopencv_imgproc341", 
+                "-llibopencv_highgui341", 
+                "-llibopencv_objdetect341",
+                "-llibopencv_imgcodecs341"
+            ]
+        },
+        {
+            "label": "build emscripten",
+            "type": "shell",
+            "command": "emcc",
+            "args": [
+                "-std=c++17",
+                "-g", "${workspaceFolder}\\lace.cpp",
+                "-g", "${workspaceFolder}\\closedcv.cpp",
                 "-o", "${workspaceFolder}\\build\\lace.exe",
                 "-I", "${workspaceFolder}\\libraries\\opencv\\include",
                 "-L", "${workspaceFolder}\\libraries\\opencv\\bin",

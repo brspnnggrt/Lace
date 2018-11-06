@@ -1,0 +1,124 @@
+<!doctype html>
+
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>Lace</title>
+    <meta name="description" content="Lace: An automated pattern builder">
+    <meta name="author" content="Gert Braspenning">
+</head>
+
+<body>
+    <div class="canvasHolder">
+        <img id="inputImage" src="./build/appel.jpg" style="display: none;"/> 
+        <canvas style="width: 300xp; height: 300px; display: inline-block; position: absolute;" id="inputCanvas"></canvas>
+        <canvas style="width: 300xp; height: 300px; display: inline-block; position: absolute; left: 400px;" id="outputCanvas"></canvas>
+    </div>
+    <script src="./libraries/opencv/wasm/opencv_js.js"></script>
+    <script>
+
+        var _cv;
+
+        runKMeans = function(image, k)
+        {
+            var samples = winnie.reshape(1, winnie.rows* winnie.cols); // change to a Nx3 column vector
+            samples.convertTo(samples, _cv.CV_32FC3, 1.0/255.0); // convert to floating point
+            
+            var labels, centers;
+            var criteria = _cv.TermCriteria("CV_TERMCRIT_EPS"|"CV_TERMCRIT_ITER", 10, 1.0);
+
+            _cv.kmeans(samples, k, labels, criteria, 4, _cv.KMEANS_PP_CENTERS, centers);
+
+            var colors = [];
+            for (var i=0; i < k; i++) {
+                colors[i] = i * (255 / k);
+            }
+
+            var clustered = _cv.Mat(winnie.rows, winnie.cols, _cv.CV_32F);
+            for (var i=0; i < winnie.cols * winnie.rows; i++) {
+                clustered.at(i / winnie.cols, i % winnie.cols) = colors[labels.at(0,i)];
+            }
+
+            clustered.convertTo(clustered, _cv.CV_8U);
+
+            return clustered;
+        };
+
+        addDottedBackground = function(source, ignoreWhereWhite) 
+        {
+            if (ignoreWhereWhite == null)
+                ignoreWhereWhite = new _cv.Mat.zeros(source.size(), _cv.CV_8U);
+
+            var image = source.clone();
+            var spacing_rows = 16;
+            var spacing_columns = 32;
+            var size = 2;
+            var drawCircle = false;
+
+            for (var r = 0; r < image.size().height; r++)
+            {
+                for (var c = 0; c < image.size().width; c++)
+                {
+                    drawCircle = false;
+
+                    if (r % spacing_rows == 0)
+                        if (c % spacing_columns == 0)
+                            drawCircle = true;
+
+                    if (r % spacing_rows == spacing_rows / 2)
+                        if (c % spacing_columns == spacing_columns / 2)
+                            drawCircle = true;
+
+                    if (drawCircle) 
+                    {
+                        var point = new _cv.Point(c + spacing_columns / 2, r + spacing_rows / 2);
+                        if (ignoreWhereWhite.ucharAt(point.y, point.x) != 255)
+                            _cv.circle(image, point, size, new _cv.Scalar(0, 0, 255, 255), -1, _cv.LINE_AA);
+                    }
+                }
+            }
+
+            return image;
+
+        };
+
+        runFloodFill = function(image, floodFillImage, seedPoint) 
+        {
+            floodImage = floodFillImage;
+            floodMask = new _cv.Mat.zeros(new _cv.Size(floodImage.size().width + 2, floodImage.size().height + 2), _cv.CV_8U);
+            tolerance = new _cv.Rect(0, 0, 0, 0);
+            _cv.floodFill(floodImage, floodMask, seedPoint, new _cv.Scalar(255), tolerance, new _cv.Scalar(0), new _cv.Scalar(0), _cv.CV_FLOODFILL_FIXED_RANGE);
+            return floodImage;
+        };
+
+        let Module = {};
+        
+        Module['onRuntimeInitialized'] = function() {
+            postMessage({msg: 'wasm'});
+
+            winnie = _cv.imread("inputImage");
+
+            _cv.imshow('inputCanvas', winnie);
+
+            let dotted = addDottedBackground(winnie);
+            _cv.imshow("outputCanvas", dotted);
+
+            floodFill = winnie.clone();
+
+            document.getElementById("inputCanvas").addEventListener('click', function(event) { 
+                let x = event.clientX;
+                let y = event.clientY;
+
+                let seedPoint = new _cv.Point(x, y);
+                let floodImage = runFloodFill(winnie, floodFill, seedPoint);
+                let result = addDottedBackground(winnie, floodImage);
+
+                _cv.imshow("outputCanvas", result);
+            }, false);
+
+        };
+        _cv = cv(Module);
+    </script>
+</body>
+</html>
