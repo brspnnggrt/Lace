@@ -12,14 +12,10 @@
 <body>
     <div class="canvasHolder">
         <img id="inputImage" src="./build/appel.jpg" style="display: none;"/> 
-        <div style="height:320px;">
-            <canvas style="width: 300xp; height: 300px; display: inline-block; position: absolute;" id="inputCanvas"></canvas>
-            <canvas style="width: 300xp; height: 300px; display: inline-block; position: absolute; left: 400px;" id="outputCanvas"></canvas>
+            <canvas id="inputCanvas"></canvas>
+            <canvas id="outputCanvas"></canvas>
+            <canvas id="floodfillCanvas"></canvas>
         </div>
-        <div>
-            <canvas style="display: inline-block; position: absolute;" id="floodfillCanvas"></canvas>
-        </div>
-    </div>
     <script src="./libraries/opencv/wasm/opencv_js.js"></script>
     <script>
 
@@ -34,17 +30,31 @@
             
             _cv.imshow("floodfillCanvas", samples);
             
+            let index = 0;
             for (let r = 0; r < image.rows; r++)
             {
                 for (let c = 0; c < image.cols; c++) 
                 {
-                    let red = image.ucharAt(r, c * image.channels());
-                    let green = image.ucharAt(r, c * image.channels() + 1);
-                    let blue = image.ucharAt(r, c * image.channels() + 2);
+                    // let red = image.ucharAt(r, c * image.channels());
+                    // let green = image.ucharAt(r, c * image.channels() + 1);
+                    // let blue = image.ucharAt(r, c * image.channels() + 2);
+                    let pixel = image.ucharPtr(r, c);
+                    let red = pixel[0];
+                    let green = pixel[1];
+                    let blue = pixel[2];
 
-                    samples.ucharPtr(r*c + c, 0)[0] = red;
-                    samples.ucharPtr(r*c + c, 1)[0] = green;
-                    samples.ucharPtr(r*c + c, 2)[0] = blue;
+                    // if (red < 250 || green < 250 || blue < 250) 
+                    // {
+                    //     console.log(red);
+                    //     console.log(green);
+                    //     console.log(blue);
+                    //     console.log("------");
+                    // }
+                    // console.log(index);
+                    samples.ucharPtr(index, 0)[0] = red;
+                    samples.ucharPtr(index, 1)[0] = green;
+                    samples.ucharPtr(index, 2)[0] = blue;
+                    index++;
                 }
             }
 
@@ -72,15 +82,8 @@
 
             _cv.imshow("floodfillCanvas", clustered);
 
-            let returnValue = new _cv.Mat(image.rows, image.cols, _cv.CV_8U);
-            for (let r = 0; r < returnValue.rows; r++)
-            {
-                for (let c = 0; c < returnValue.cols; c++) 
-                {
-                    returnValue.ucharPtr(c, r)[0] = clustered.floatAt(1, r * c);
-                }
-            }
-
+            let returnValue = new _cv.Mat();
+            clustered.convertTo(returnValue, _cv.CV_8U);
             _cv.imshow("floodfillCanvas", returnValue);
 
             return returnValue;
@@ -126,9 +129,9 @@
 
         runFloodFill = function(image, floodFillImage, seedPoint) 
         {
-            floodImage = floodFillImage;
-            floodMask = new _cv.Mat.zeros(new _cv.Size(floodImage.size().width + 2, floodImage.size().height + 2), _cv.CV_8U);
-            tolerance = new _cv.Rect(0, 0, 0, 0);
+            let floodImage = floodFillImage;
+            let floodMask = new _cv.Mat.zeros(new _cv.Size(floodImage.size().width + 2, floodImage.size().height + 2), _cv.CV_8U);
+            let tolerance = new _cv.Rect(0, 0, 0, 0);
             try {
                 _cv.floodFill2(floodImage, floodMask, seedPoint, new _cv.Scalar(255), tolerance, new _cv.Scalar(0), new _cv.Scalar(0), _cv.FLOODFILL_FIXED_RANGE);
             } 
@@ -136,6 +139,7 @@
                 // alert(ex);
                 return floodImage;
             }
+            return floodImage;
         };
 
         let Module = {};
@@ -152,9 +156,7 @@
 
             let floodFill = runKMeans(winnie, 2);
 
-            // floodFill = clustered.clone();
-
-            /*_cv.imshow("floodfillCanvas", floodFill);
+            _cv.imshow("floodfillCanvas", floodFill);
 
             document.getElementById("inputCanvas").addEventListener('click', function(event) { 
                 let x = event.clientX;
@@ -166,7 +168,7 @@
 
                 _cv.imshow("floodfillCanvas", floodImage);
                 _cv.imshow("outputCanvas", result);
-            }, false);*/
+            }, false);
 
         };
         _cv = cv(Module);
