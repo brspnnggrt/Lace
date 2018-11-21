@@ -45,9 +45,9 @@ cv::Mat3b ClosedCv::LoadImage(cv::String imagePath)
     return image;
 }
 
-cv::Mat ClosedCv::RunKMeans(cv::Mat winnie, int k) 
+cv::Mat ClosedCv::RunKMeans(cv::Mat image, int k) 
 {
-    cv::Mat samples = winnie.reshape(1, winnie.rows* winnie.cols); // change to a Nx3 column vector
+    cv::Mat samples = image.reshape(1, image.rows* image.cols); // change to a Nx3 column vector
     samples.convertTo(samples, CV_32FC3, 1.0/255.0); // convert to floating point
     ClosedCv::LogMat(samples);
 
@@ -61,9 +61,9 @@ cv::Mat ClosedCv::RunKMeans(cv::Mat winnie, int k)
         colors[i] = i * (255 / k);
     }
 
-    cv::Mat clustered = cv::Mat(winnie.rows, winnie.cols, CV_32F);
-    for (int i=0; i < winnie.cols * winnie.rows; i++) {
-        clustered.at<float>(i / winnie.cols, i % winnie.cols) = (float)(colors[labels.at<int>(0,i)]);
+    cv::Mat clustered = cv::Mat(image.rows, image.cols, CV_32F);
+    for (int i=0; i < image.cols * image.rows; i++) {
+        clustered.at<float>(i / image.cols, i % image.cols) = (float)(colors[labels.at<int>(0,i)]);
     }
 
     clustered.convertTo(clustered, CV_8U);

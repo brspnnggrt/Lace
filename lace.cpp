@@ -22,7 +22,7 @@ void onMouse(int event, int x, int y, int, void* param)
     
     cv::Mat result = ClosedCv::AddDottedBackground(winnie, floodImage);
 
-    // cv::imshow("flood", floodImage);
+    cv::imshow("flood", floodImage);
     cv::imshow("dotted", result);
 };
 

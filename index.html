@@ -12,37 +12,78 @@
 <body>
     <div class="canvasHolder">
         <img id="inputImage" src="./build/appel.jpg" style="display: none;"/> 
-        <canvas style="width: 300xp; height: 300px; display: inline-block; position: absolute;" id="inputCanvas"></canvas>
-        <canvas style="width: 300xp; height: 300px; display: inline-block; position: absolute; left: 400px;" id="outputCanvas"></canvas>
+        <div style="height:320px;">
+            <canvas style="width: 300xp; height: 300px; display: inline-block; position: absolute;" id="inputCanvas"></canvas>
+            <canvas style="width: 300xp; height: 300px; display: inline-block; position: absolute; left: 400px;" id="outputCanvas"></canvas>
+        </div>
+        <div>
+            <canvas style="display: inline-block; position: absolute;" id="floodfillCanvas"></canvas>
+        </div>
     </div>
     <script src="./libraries/opencv/wasm/opencv_js.js"></script>
     <script>
 
-        var _cv;
+        let _cv;
 
         runKMeans = function(image, k)
         {
-            var samples = winnie.reshape(1, winnie.rows* winnie.cols); // change to a Nx3 column vector
+            _cv.cvtColor(image, image, _cv.COLOR_BGRA2BGR);
+
+            //let samples = new _cv.Mat(3, image.rows * image.cols, _cv.CV_8U) // image.reshape(1, image.rows* image.cols); // change to a Nx3 column vector
+            let samples = _cv.Mat.zeros(image.rows * image.cols, 3, _cv.CV_8U);
+            
+            _cv.imshow("floodfillCanvas", samples);
+            
+            for (let r = 0; r < image.rows; r++)
+            {
+                for (let c = 0; c < image.cols; c++) 
+                {
+                    let red = image.ucharAt(r, c * image.channels());
+                    let green = image.ucharAt(r, c * image.channels() + 1);
+                    let blue = image.ucharAt(r, c * image.channels() + 2);
+
+                    samples.ucharPtr(r*c + c, 0)[0] = red;
+                    samples.ucharPtr(r*c + c, 1)[0] = green;
+                    samples.ucharPtr(r*c + c, 2)[0] = blue;
+                }
+            }
+
+            _cv.imshow("floodfillCanvas", samples);
+                    
             samples.convertTo(samples, _cv.CV_32FC3, 1.0/255.0); // convert to floating point
             
-            var labels, centers;
-            var criteria = _cv.TermCriteria("CV_TERMCRIT_EPS"|"CV_TERMCRIT_ITER", 10, 1.0);
+            _cv.imshow("floodfillCanvas", samples);
+
+            let labels = new _cv.Mat(); // _cv.matFromArray(image.rows, image.cols, _cv.CV_8U, []);
+            let centers = new _cv.Mat();
+            let criteria = new _cv.TermCriteria("CV_TERMCRIT_EPS"|"CV_TERMCRIT_ITER", 10, 1.0);
 
             _cv.kmeans(samples, k, labels, criteria, 4, _cv.KMEANS_PP_CENTERS, centers);
 
-            var colors = [];
-            for (var i=0; i < k; i++) {
+            let colors = [];
+            for (let i=0; i < k; i++) {
                 colors[i] = i * (255 / k);
             }
 
-            var clustered = _cv.Mat(winnie.rows, winnie.cols, _cv.CV_32F);
-            for (var i=0; i < winnie.cols * winnie.rows; i++) {
-                clustered.at(i / winnie.cols, i % winnie.cols) = colors[labels.at(0,i)];
+            let clustered = new _cv.Mat(image.rows, image.cols, _cv.CV_32F);
+            for (let i=0; i < image.cols * image.rows; i++) {
+                clustered.floatPtr(i / image.cols, i % image.cols)[0] = colors[labels.intAt(0,i)];
             }
 
-            clustered.convertTo(clustered, _cv.CV_8U);
+            _cv.imshow("floodfillCanvas", clustered);
 
-            return clustered;
+            let returnValue = new _cv.Mat(image.rows, image.cols, _cv.CV_8U);
+            for (let r = 0; r < returnValue.rows; r++)
+            {
+                for (let c = 0; c < returnValue.cols; c++) 
+                {
+                    returnValue.ucharPtr(c, r)[0] = clustered.floatAt(1, r * c);
+                }
+            }
+
+            _cv.imshow("floodfillCanvas", returnValue);
+
+            return returnValue;
         };
 
         addDottedBackground = function(source, ignoreWhereWhite) 
@@ -50,15 +91,15 @@
             if (ignoreWhereWhite == null)
                 ignoreWhereWhite = new _cv.Mat.zeros(source.size(), _cv.CV_8U);
 
-            var image = source.clone();
-            var spacing_rows = 16;
-            var spacing_columns = 32;
-            var size = 2;
-            var drawCircle = false;
+            let image = source.clone();
+            let spacing_rows = 16;
+            let spacing_columns = 32;
+            let size = 2;
+            let drawCircle = false;
 
-            for (var r = 0; r < image.size().height; r++)
+            for (let r = 0; r < image.size().height; r++)
             {
-                for (var c = 0; c < image.size().width; c++)
+                for (let c = 0; c < image.size().width; c++)
                 {
                     drawCircle = false;
 
@@ -72,7 +113,7 @@
 
                     if (drawCircle) 
                     {
-                        var point = new _cv.Point(c + spacing_columns / 2, r + spacing_rows / 2);
+                        let point = new _cv.Point(c + spacing_columns / 2, r + spacing_rows / 2);
                         if (ignoreWhereWhite.ucharAt(point.y, point.x) != 255)
                             _cv.circle(image, point, size, new _cv.Scalar(0, 0, 255, 255), -1, _cv.LINE_AA);
                     }
@@ -88,8 +129,13 @@
             floodImage = floodFillImage;
             floodMask = new _cv.Mat.zeros(new _cv.Size(floodImage.size().width + 2, floodImage.size().height + 2), _cv.CV_8U);
             tolerance = new _cv.Rect(0, 0, 0, 0);
-            _cv.floodFill(floodImage, floodMask, seedPoint, new _cv.Scalar(255), tolerance, new _cv.Scalar(0), new _cv.Scalar(0), _cv.CV_FLOODFILL_FIXED_RANGE);
-            return floodImage;
+            try {
+                _cv.floodFill2(floodImage, floodMask, seedPoint, new _cv.Scalar(255), tolerance, new _cv.Scalar(0), new _cv.Scalar(0), _cv.FLOODFILL_FIXED_RANGE);
+            } 
+            catch (ex) {
+                // alert(ex);
+                return floodImage;
+            }
         };
 
         let Module = {};
@@ -104,7 +150,11 @@
             let dotted = addDottedBackground(winnie);
             _cv.imshow("outputCanvas", dotted);
 
-            floodFill = winnie.clone();
+            let floodFill = runKMeans(winnie, 2);
+
+            // floodFill = clustered.clone();
+
+            /*_cv.imshow("floodfillCanvas", floodFill);
 
             document.getElementById("inputCanvas").addEventListener('click', function(event) { 
                 let x = event.clientX;
@@ -114,8 +164,9 @@
                 let floodImage = runFloodFill(winnie, floodFill, seedPoint);
                 let result = addDottedBackground(winnie, floodImage);
 
+                _cv.imshow("floodfillCanvas", floodImage);
                 _cv.imshow("outputCanvas", result);
-            }, false);
+            }, false);*/
 
         };
         _cv = cv(Module);
