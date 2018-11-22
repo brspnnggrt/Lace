@@ -159,8 +159,11 @@
             _cv.imshow("floodfillCanvas", floodFill);
 
             document.getElementById("inputCanvas").addEventListener('click', function(event) { 
-                let x = event.clientX;
-                let y = event.clientY;
+                getCoords = function(event) {
+                    return { x: event.offsetX || event.layerX, y: event.offsetY || event.layerY };
+                }
+                let x = getCoords(event).x;
+                let y = getCoords(event).y;
 
                 let seedPoint = new _cv.Point(x, y);
                 let floodImage = runFloodFill(winnie, floodFill, seedPoint);
