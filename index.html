@@ -10,12 +10,15 @@
 </head>
 
 <body>
+    <div>
+        <input type="text" id="imageInput" style="width:100%;" onsubmit="imageChangeHandler(this);"/>
+    </div>
     <div class="canvasHolder">
-        <img id="inputImage" src="./build/appel.jpg" style="display: none;"/> 
-            <canvas id="inputCanvas"></canvas>
-            <canvas id="outputCanvas"></canvas>
-            <canvas id="floodfillCanvas"></canvas>
-        </div>
+        <!-- <img id="inputImage" src="./build/winnie.png" style="display: none;"/>  -->
+        <canvas id="inputCanvas"></canvas>
+        <canvas id="outputCanvas"></canvas>
+        <canvas id="floodfillCanvas"></canvas>
+        <!-- </div> -->
     <script src="./libraries/opencv/wasm/opencv_js.js"></script>
     <script>
 
@@ -114,7 +117,7 @@
                         if (c % spacing_columns == spacing_columns / 2)
                             drawCircle = true;
 
-                    if (drawCircle) 
+                    if (drawCircle)
                     {
                         let point = new _cv.Point(c + spacing_columns / 2, r + spacing_rows / 2);
                         if (ignoreWhereWhite.ucharAt(point.y, point.x) != 255)
@@ -142,12 +145,9 @@
             return floodImage;
         };
 
-        let Module = {};
-        
-        Module['onRuntimeInitialized'] = function() {
-            postMessage({msg: 'wasm'});
+        loadImage = function(imageElement) {
 
-            winnie = _cv.imread("inputImage");
+            winnie = _cv.imread(imageElement);
 
             _cv.imshow('inputCanvas', winnie);
 
@@ -172,9 +172,28 @@
                 _cv.imshow("floodfillCanvas", floodImage);
                 _cv.imshow("outputCanvas", result);
             }, false);
+        }
 
+        imageChangeHandler = function(event) {
+            if (event.keyCode === 13) {
+                currentImageUrl = document.getElementById("imageInput").value;
+                var img = new Image();
+                img.onload = function() { loadImage(img); }
+                img.src = currentImageUrl;
+            }
+        }
+
+        postMessage({msg: 'wasm'});
+        let Module = {};
+        let currentImageUrl = "./build/winnie.png";
+        Module['onRuntimeInitialized'] = function() { 
+            var img = new Image();
+            img.onload = function() { loadImage(img); }
+            img.src = currentImageUrl;
         };
         _cv = cv(Module);
+        document.getElementById("imageInput").addEventListener('keyup', imageChangeHandler);
+
     </script>
 </body>
 </html>

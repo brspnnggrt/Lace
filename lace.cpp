@@ -29,7 +29,7 @@ void onMouse(int event, int x, int y, int, void* param)
 int main(int argc, char **argv)
 {
     // Load image
-    winnie = ClosedCv::LoadImage("appel.jpg");
+    winnie = ClosedCv::LoadImage("winnie.png");
     ClosedCv::LogMat(winnie);
 
     // Run kmeans
