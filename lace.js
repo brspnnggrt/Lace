@@ -1,3 +1,17 @@
+/*
+
+Spread in height: 4 per cm
+Ratio width/height can be different according to user's wishes.
+Standard: 5/10 -> 2 per cm
+
+Meaning:
+    Distance between points vertically: 1/4 cm
+    Distance between points horizontally: 1/2 cm
+
+In future other patterns should be available with customized ratio support.
+
+*/
+
 let _cv;
 
 let runKMeans = function(image, k)
