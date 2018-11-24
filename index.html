@@ -14,11 +14,10 @@
         <input type="text" id="imageInput" style="width:100%;" onsubmit="imageChangeHandler(this);"/>
     </div>
     <div class="canvasHolder">
-        <!-- <img id="inputImage" src="./build/winnie.png" style="display: none;"/>  -->
-        <canvas style="max-width:400px;" id="inputCanvas"></canvas>
-        <canvas style="max-width:400px;" id="outputCanvas"></canvas>
-        <canvas style="max-width:400px;" id="floodfillCanvas"></canvas>
-        <!-- </div> -->
+        <canvas style="max-width:490px; max-height: 310px;" id="inputCanvas"></canvas>
+        <canvas style="max-width:490px; max-height: 310px;" id="outputCanvas"></canvas>
+        <canvas style="max-width:490px; max-height: 310px;" id="dotsCanvas"></canvas>
+        <canvas style="max-width:490px; max-height: 310px;" id="floodfillCanvas"></canvas>
     <script src="./libraries/opencv/wasm/opencv_js.js"></script>
     <script>
 
@@ -28,7 +27,6 @@
         {
             _cv.cvtColor(image, image, _cv.COLOR_BGRA2BGR);
 
-            //let samples = new _cv.Mat(3, image.rows * image.cols, _cv.CV_8U) // image.reshape(1, image.rows* image.cols); // change to a Nx3 column vector
             let samples = _cv.Mat.zeros(image.rows * image.cols, 3, _cv.CV_8U);
             
             _cv.imshow("floodfillCanvas", samples);
@@ -38,22 +36,11 @@
             {
                 for (let c = 0; c < image.cols; c++) 
                 {
-                    // let red = image.ucharAt(r, c * image.channels());
-                    // let green = image.ucharAt(r, c * image.channels() + 1);
-                    // let blue = image.ucharAt(r, c * image.channels() + 2);
                     let pixel = image.ucharPtr(r, c);
                     let red = pixel[0];
                     let green = pixel[1];
                     let blue = pixel[2];
 
-                    // if (red < 250 || green < 250 || blue < 250) 
-                    // {
-                    //     console.log(red);
-                    //     console.log(green);
-                    //     console.log(blue);
-                    //     console.log("------");
-                    // }
-                    // console.log(index);
                     samples.ucharPtr(index, 0)[0] = red;
                     samples.ucharPtr(index, 1)[0] = green;
                     samples.ucharPtr(index, 2)[0] = blue;
@@ -67,7 +54,7 @@
             
             _cv.imshow("floodfillCanvas", samples);
 
-            let labels = new _cv.Mat(); // _cv.matFromArray(image.rows, image.cols, _cv.CV_8U, []);
+            let labels = new _cv.Mat();
             let centers = new _cv.Mat();
             let criteria = new _cv.TermCriteria("CV_TERMCRIT_EPS"|"CV_TERMCRIT_ITER", 10, 1.0);
 
@@ -147,16 +134,20 @@
 
         let loadImage = function(imageElement) {
 
-            winnie = _cv.imread(imageElement);
+            let sourceImage = _cv.imread(imageElement);
 
-            _cv.imshow('inputCanvas', winnie);
+            _cv.imshow('inputCanvas', sourceImage);
 
-            let dotted = addDottedBackground(winnie);
+            let dotted = addDottedBackground(sourceImage);
             _cv.imshow("outputCanvas", dotted);
 
-            floodFill = runKMeans(winnie, 2);
-
+            floodFill = runKMeans(sourceImage, 2);
             _cv.imshow("floodfillCanvas", floodFill);
+
+            let dots = sourceImage.clone();
+            dots.setTo(new _cv.Scalar(255,255,255));
+            let outputDots = addDottedBackground(dots);
+            _cv.imshow("dotsCanvas", outputDots);
         }
 
         let imageChangeHandler = function(event) {
@@ -170,6 +161,8 @@
         }
 
         let imageClickHandler = function(event) { 
+
+            let sourceImage = _cv.imread("inputCanvas");
 
             let imageWidth = document.getElementById("inputCanvas").width;
             let renderedWidth = document.getElementById("inputCanvas").getBoundingClientRect().width;
@@ -188,20 +181,21 @@
             let y = getCoords(event).y * scalingFactor;
 
             let seedPoint = new _cv.Point(x, y);
-            let floodImage = runFloodFill(winnie, floodFill, seedPoint);
-            let result = addDottedBackground(winnie, floodImage);
+            let floodImage = runFloodFill(sourceImage, floodFill, seedPoint);
+            let result = addDottedBackground(sourceImage, floodImage);
 
-            let dots = winnie.clone();
+            let dots = sourceImage.clone();
             dots.setTo(new _cv.Scalar(255,255,255));
             dots = addDottedBackground(dots, floodImage);
 
-            _cv.imshow("floodfillCanvas", dots);
+            _cv.imshow("dotsCanvas", dots);
+            _cv.imshow("floodfillCanvas", floodFill);
             _cv.imshow("outputCanvas", result);
         }
 
         postMessage({msg: 'wasm'});
         let Module = {};
-        let currentImageUrl = "./build/winnie.png";
+        let currentImageUrl = "./build/appel.jpg";
         let floodFill = null;
         Module['onRuntimeInitialized'] = function() { 
             var img = new Image();
