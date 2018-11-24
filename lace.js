@@ -10,17 +10,47 @@ Meaning:
 
 In future other patterns should be available with customized ratio support.
 
+Currently assumes printer uses 150dpi resolution when printing
+
+Meaning:
+
+    Distance between points vertically: 15px
+    Distance between points horizontally: 30px (for 5/10)
+
 */
 
-let _cv;
+let Lace = {};
+Lace.cv = null;
+Lace.scalingFactor = 1;
+Lace.floodFill = null;
+Lace.configuration = {
+    distanceVertical: 15,
+    distanceRatio: 4/10,
+    borderSize: 0.08 // 5% of total width/height
+};
 
-let runKMeans = function(image, k)
+Lace.init = function() 
 {
-    _cv.cvtColor(image, image, _cv.COLOR_BGRA2BGR);
+    postMessage({msg: 'wasm'});
+    let Module = {};
+    Module['onRuntimeInitialized'] = function() { 
+        Lace.imageChangeHandler();
+    };
+    Lace.cv = cv(Module);
+    document.getElementById("inputCanvas").addEventListener('click', Lace.imageClickHandler);
+    document.getElementById("imageInput").addEventListener('keyup', function (event) {
+        if (event.keyCode === 13) 
+            Lace.imageChangeHandler();
+    });
+}
 
-    let samples = _cv.Mat.zeros(image.rows * image.cols, 3, _cv.CV_8U);
+Lace.runKMeans = function(image, k)
+{
+    Lace.cv.cvtColor(image, image, Lace.cv.COLOR_BGRA2BGR);
+
+    let samples = Lace.cv.Mat.zeros(image.rows * image.cols, 3, Lace.cv.CV_8U);
     
-    _cv.imshow("floodfillCanvas", samples);
+    Lace.cv.imshow("floodfillCanvas", samples);
     
     let index = 0;
     for (let r = 0; r < image.rows; r++)
@@ -39,45 +69,82 @@ let runKMeans = function(image, k)
         }
     }
 
-    _cv.imshow("floodfillCanvas", samples);
+    Lace.cv.imshow("floodfillCanvas", samples);
             
-    samples.convertTo(samples, _cv.CV_32FC3, 1.0/255.0); // convert to floating point
+    samples.convertTo(samples, Lace.cv.CV_32FC3, 1.0/255.0); // convert to floating point
     
-    _cv.imshow("floodfillCanvas", samples);
+    Lace.cv.imshow("floodfillCanvas", samples);
 
-    let labels = new _cv.Mat();
-    let centers = new _cv.Mat();
-    let criteria = new _cv.TermCriteria("CV_TERMCRIT_EPS"|"CV_TERMCRIT_ITER", 10, 1.0);
+    let labels = new Lace.cv.Mat();
+    let centers = new Lace.cv.Mat();
+    let criteria = new Lace.cv.TermCriteria("CV_TERMCRIT_EPS"|"CV_TERMCRIT_ITER", 10, 1.0);
 
-    _cv.kmeans(samples, k, labels, criteria, 4, _cv.KMEANS_PP_CENTERS, centers);
+    Lace.cv.kmeans(samples, k, labels, criteria, 4, Lace.cv.KMEANS_PP_CENTERS, centers);
 
     let colors = [];
     for (let i=0; i < k; i++) {
         colors[i] = i * (255 / k);
     }
 
-    let clustered = new _cv.Mat(image.rows, image.cols, _cv.CV_32F);
+    let clustered = new Lace.cv.Mat(image.rows, image.cols, Lace.cv.CV_32F);
     for (let i=0; i < image.cols * image.rows; i++) {
         clustered.floatPtr(i / image.cols, i % image.cols)[0] = colors[labels.intAt(0,i)];
     }
 
-    _cv.imshow("floodfillCanvas", clustered);
+    Lace.cv.imshow("floodfillCanvas", clustered);
 
-    let returnValue = new _cv.Mat();
-    clustered.convertTo(returnValue, _cv.CV_8U);
-    _cv.imshow("floodfillCanvas", returnValue);
+    let returnValue = new Lace.cv.Mat();
+    clustered.convertTo(returnValue, Lace.cv.CV_8U);
+    Lace.cv.imshow("floodfillCanvas", returnValue);
 
     return returnValue;
 };
 
-let addDottedBackground = function(source, ignoreWhereWhite) 
+Lace.addBorder = function(image) 
+{
+    // Create white area for border
+    let borderWidth = Lace.configuration.borderSize * image.cols;
+    let borderHeight = Lace.configuration.borderSize * image.rows;
+    let borderType = Lace.cv.BORDER_CONSTANT;
+    let dst = new Lace.cv.Mat();
+    let white = new Lace.cv.Scalar(255, 255, 255, 255);
+    Lace.cv.copyMakeBorder(image, dst, borderHeight, borderWidth, borderHeight, borderWidth, borderType, white);
+    
+    // Add border
+    let borders = [{
+        x1: borderWidth, 
+        x2: dst.cols - borderWidth, 
+        y1: borderHeight, 
+        y2: dst.rows - borderHeight 
+    },
+    { 
+        x1: borderWidth - Lace.configuration.distanceVertical, 
+        x2: dst.cols - borderWidth + Lace.configuration.distanceVertical, 
+        y1: borderHeight - Lace.configuration.distanceVertical, 
+        y2: dst.rows - borderHeight + Lace.configuration.distanceVertical 
+    }];
+    let drawBorder = function(border, dst) {
+        let point1 = new Lace.cv.Point(border.x1, border.y1);
+        let point2 = new Lace.cv.Point(border.x2, border.y2);
+        let black = new Lace.cv.Scalar(0, 0, 0, 255);
+        let lineThickness = 1;
+        Lace.cv.rectangle(dst, point1, point2, black, lineThickness);
+    }
+    for (let border of borders) {
+        drawBorder(border, dst);
+    }
+
+    return dst;
+}
+
+Lace.addDottedBackground = function(source, ignoreWhereWhite) 
 {
     if (ignoreWhereWhite == null)
-        ignoreWhereWhite = new _cv.Mat.zeros(source.size(), _cv.CV_8U);
+        ignoreWhereWhite = new Lace.cv.Mat.zeros(source.size(), Lace.cv.CV_8U);
 
     let image = source.clone();
-    let spacing_rows = 8;
-    let spacing_columns = 16;
+    let spacing_rows = 14; //Lace.configuration.distanceVertical;
+    let spacing_columns = 28; //Lace.configuration.distanceVertical / Lace.configuration.distanceRatio;
     let size = 1;
     let drawCircle = false;
 
@@ -97,9 +164,9 @@ let addDottedBackground = function(source, ignoreWhereWhite)
 
             if (drawCircle)
             {
-                let point = new _cv.Point(c + spacing_columns / 2, r + spacing_rows / 2);
+                let point = new Lace.cv.Point(c + spacing_columns / 2, r + spacing_rows / 2);
                 if (ignoreWhereWhite.ucharAt(point.y, point.x) != 255)
-                    _cv.circle(image, point, size, new _cv.Scalar(255, 0, 0, 255), -1, _cv.LINE_AA);
+                    Lace.cv.circle(image, point, size, new Lace.cv.Scalar(255, 0, 0, 255), -1, Lace.cv.LINE_AA);
             }
         }
     }
@@ -108,20 +175,20 @@ let addDottedBackground = function(source, ignoreWhereWhite)
 
 };
 
-let runFloodFill = function(image, floodFillImage, seedPoint) 
+Lace.runFloodFill = function(image, floodFillImage, seedPoint) 
 {
     // don't run floodfill on black areas (technically when "more black than white")
-    let kmeans = _cv.imread("kmeansCanvas");
+    let kmeans = Lace.cv.imread("kmeansCanvas");
     let sourceValue = kmeans.ucharPtr(seedPoint.y, seedPoint.x);
 
     if (sourceValue[0] == 128 && sourceValue[1] == 128 && sourceValue[2] == 128)
         return floodFillImage; 
 
     let floodImage = floodFillImage;
-    let floodMask = new _cv.Mat.zeros(new _cv.Size(floodImage.size().width + 2, floodImage.size().height + 2), _cv.CV_8U);
-    let tolerance = new _cv.Rect(0, 0, 0, 0);
+    let floodMask = new Lace.cv.Mat.zeros(new Lace.cv.Size(floodImage.size().width + 2, floodImage.size().height + 2), Lace.cv.CV_8U);
+    let tolerance = new Lace.cv.Rect(0, 0, 0, 0);
     try {
-        _cv.floodFill2(floodImage, floodMask, seedPoint, new _cv.Scalar(255), tolerance, new _cv.Scalar(0), new _cv.Scalar(0), _cv.FLOODFILL_FIXED_RANGE);
+        Lace.cv.floodFill2(floodImage, floodMask, seedPoint, new Lace.cv.Scalar(255), tolerance, new Lace.cv.Scalar(0), new Lace.cv.Scalar(0), Lace.cv.FLOODFILL_FIXED_RANGE);
     } 
     catch (ex) {
         // alert(ex);
@@ -130,45 +197,48 @@ let runFloodFill = function(image, floodFillImage, seedPoint)
     return floodImage;
 };
 
-let loadImage = function(imageElement) {
-
+Lace.loadImage = function(imageElement) 
+{
     // load source into canvas & recalculate scaling factor
-    let sourceImage = _cv.imread(imageElement);
-    _cv.imshow('inputCanvas', sourceImage);
+    let sourceImage = Lace.cv.imread(imageElement);
+    Lace.cv.imshow('inputCanvas', sourceImage);
     let imageWidth = document.getElementById("inputCanvas").width;
     let renderedWidth = document.getElementById("inputCanvas").getBoundingClientRect().width;
     scalingFactor = imageWidth / renderedWidth;
 
     // load source with dotted background
-    let dotted = addDottedBackground(sourceImage);
-    _cv.imshow("outputCanvas", dotted);
+    let dotted = Lace.addDottedBackground(sourceImage);
+    Lace.cv.imshow("outputCanvas", dotted);
+
+    let result = Lace.addBorder(dotted);
+    Lace.cv.imshow("resultCanvas", result);
 
     // load kmeans & initial mask
-    floodFill = runKMeans(sourceImage, 2);
-    _cv.imshow("kmeansCanvas", floodFill);
-    _cv.imshow("floodfillCanvas", floodFill);
+    floodFill = Lace.runKMeans(sourceImage, 2);
+    Lace.cv.imshow("kmeansCanvas", floodFill);
+    Lace.cv.imshow("floodfillCanvas", floodFill);
 
     // load dotted background on white canvas
     let dots = sourceImage.clone();
-    dots.setTo(new _cv.Scalar(255,255,255));
-    let outputDots = addDottedBackground(dots);
-    _cv.imshow("dotsCanvas", outputDots);
+    dots.setTo(new Lace.cv.Scalar(255, 255, 255, 255));
+    let outputDots = Lace.addDottedBackground(dots);
+    Lace.cv.imshow("dotsCanvas", outputDots);
 }
 
-let imageChangeHandler = function() 
+Lace.imageChangeHandler = function() 
 {    
     var img = new Image();
     img.crossOrigin = "Anonymous";
     img.onload = function() 
     {
-        loadImage(img); 
+        Lace.loadImage(img); 
     }
     img.src = document.getElementById("imageInput").value;
 }
 
-let imageClickHandler = function(event) { 
-
-    let sourceImage = _cv.imread("inputCanvas");
+Lace.imageClickHandler = function(event) 
+{
+    let sourceImage = Lace.cv.imread("inputCanvas");
 
     let getCoords = function(event) {
         return { 
@@ -180,34 +250,20 @@ let imageClickHandler = function(event) {
     let x = getCoords(event).x * scalingFactor;
     let y = getCoords(event).y * scalingFactor;
 
-    let seedPoint = new _cv.Point(x, y);
-    let floodImage = runFloodFill(sourceImage, floodFill, seedPoint);
-    let result = addDottedBackground(sourceImage, floodImage);
+    let seedPoint = new Lace.cv.Point(x, y);
+    let floodImage = Lace.runFloodFill(sourceImage, floodFill, seedPoint);
+    let dotted = Lace.addDottedBackground(sourceImage, floodImage);
 
     let dots = sourceImage.clone();
-    dots.setTo(new _cv.Scalar(255,255,255));
-    dots = addDottedBackground(dots, floodImage);
+    dots.setTo(new Lace.cv.Scalar(255, 255, 255, 255));
+    dots = Lace.addDottedBackground(dots, floodImage);
 
-    _cv.imshow("dotsCanvas", dots);
-    _cv.imshow("floodfillCanvas", floodFill);
-    _cv.imshow("outputCanvas", result);
+    Lace.cv.imshow("dotsCanvas", dots);
+    Lace.cv.imshow("floodfillCanvas", floodFill);
+    Lace.cv.imshow("outputCanvas", dotted);
+
+    let result = Lace.addBorder(dotted);
+    Lace.cv.imshow("resultCanvas", result);
 }
 
-let init = function() {
-
-    postMessage({msg: 'wasm'});
-    let Module = {};
-    let scalingFactor = 1;
-    let floodFill = null;
-    Module['onRuntimeInitialized'] = function() { 
-        imageChangeHandler();
-    };
-    _cv = cv(Module);
-    document.getElementById("imageInput").addEventListener('keyup', function (event) {
-        if (event.keyCode === 13) 
-            imageChangeHandler();
-    });
-    document.getElementById("inputCanvas").addEventListener('click', imageClickHandler);
-}
-
-init();
+Lace.init();
