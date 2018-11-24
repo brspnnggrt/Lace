@@ -11,12 +11,13 @@
 
 <body>
     <div>
-        <input type="text" id="imageInput" style="width:100%;" onsubmit="imageChangeHandler(this);"/>
+        <input type="text" id="imageInput" style="width:100%;" value="./build/winnie.png"/>
     </div>
     <div class="canvasHolder">
         <canvas style="max-width:490px; max-height: 310px;" id="inputCanvas"></canvas>
         <canvas style="max-width:490px; max-height: 310px;" id="outputCanvas"></canvas>
         <canvas style="max-width:490px; max-height: 310px;" id="dotsCanvas"></canvas>
+        <canvas style="max-width:490px; max-height: 310px;" id="kmeansCanvas"></canvas>
         <canvas style="max-width:490px; max-height: 310px;" id="floodfillCanvas"></canvas>
     <script src="./libraries/opencv/wasm/opencv_js.js"></script>
     <script>
@@ -119,6 +120,13 @@
 
         let runFloodFill = function(image, floodFillImage, seedPoint) 
         {
+            // don't run floodfill on black areas (technically when "more black than white")
+            let kmeans = _cv.imread("kmeansCanvas");
+            let sourceValue = kmeans.ucharPtr(seedPoint.y, seedPoint.x);
+
+            if (sourceValue[0] == 128 && sourceValue[1] == 128 && sourceValue[2] == 128)
+                return floodFillImage; 
+
             let floodImage = floodFillImage;
             let floodMask = new _cv.Mat.zeros(new _cv.Size(floodImage.size().width + 2, floodImage.size().height + 2), _cv.CV_8U);
             let tolerance = new _cv.Rect(0, 0, 0, 0);
@@ -134,41 +142,43 @@
 
         let loadImage = function(imageElement) {
 
+            // load source into canvas & recalculate scaling factor
             let sourceImage = _cv.imread(imageElement);
-
             _cv.imshow('inputCanvas', sourceImage);
+            let imageWidth = document.getElementById("inputCanvas").width;
+            let renderedWidth = document.getElementById("inputCanvas").getBoundingClientRect().width;
+            scalingFactor = imageWidth / renderedWidth;
 
+            // load source with dotted background
             let dotted = addDottedBackground(sourceImage);
             _cv.imshow("outputCanvas", dotted);
 
+            // load kmeans & initial mask
             floodFill = runKMeans(sourceImage, 2);
+            _cv.imshow("kmeansCanvas", floodFill);
             _cv.imshow("floodfillCanvas", floodFill);
 
+            // load dotted background on white canvas
             let dots = sourceImage.clone();
             dots.setTo(new _cv.Scalar(255,255,255));
             let outputDots = addDottedBackground(dots);
             _cv.imshow("dotsCanvas", outputDots);
         }
 
-        let imageChangeHandler = function(event) {
-            if (event.keyCode === 13) {
-                currentImageUrl = document.getElementById("imageInput").value;
-                var img = new Image();
-                img.crossOrigin = "Anonymous";
-                img.onload = function() { loadImage(img); }
-                img.src = currentImageUrl;
+        let imageChangeHandler = function() 
+        {    
+            var img = new Image();
+            img.crossOrigin = "Anonymous";
+            img.onload = function() 
+            {
+                loadImage(img); 
             }
+            img.src = document.getElementById("imageInput").value;
         }
 
         let imageClickHandler = function(event) { 
 
             let sourceImage = _cv.imread("inputCanvas");
-
-            let imageWidth = document.getElementById("inputCanvas").width;
-            let renderedWidth = document.getElementById("inputCanvas").getBoundingClientRect().width;
-
-            // recalculate scaling factor (since max-width is 400px)
-            let scalingFactor = imageWidth / renderedWidth;
 
             let getCoords = function(event) {
                 return { 
@@ -195,16 +205,16 @@
 
         postMessage({msg: 'wasm'});
         let Module = {};
-        let currentImageUrl = "./build/appel.jpg";
+        let scalingFactor = 1;
         let floodFill = null;
         Module['onRuntimeInitialized'] = function() { 
-            var img = new Image();
-            img.crossOrigin = "Anonymous";
-            img.onload = function() { loadImage(img); }
-            img.src = currentImageUrl;
+            imageChangeHandler();
         };
         _cv = cv(Module);
-        document.getElementById("imageInput").addEventListener('keyup', imageChangeHandler);
+        document.getElementById("imageInput").addEventListener('keyup', function (event) {
+            if (event.keyCode === 13) 
+                imageChangeHandler();
+        });
         document.getElementById("inputCanvas").addEventListener('click', imageClickHandler);
 
     </script>
