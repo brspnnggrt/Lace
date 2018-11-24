@@ -15,16 +15,16 @@
     </div>
     <div class="canvasHolder">
         <!-- <img id="inputImage" src="./build/winnie.png" style="display: none;"/>  -->
-        <canvas id="inputCanvas"></canvas>
-        <canvas id="outputCanvas"></canvas>
-        <canvas id="floodfillCanvas"></canvas>
+        <canvas style="max-width:400px;" id="inputCanvas"></canvas>
+        <canvas style="max-width:400px;" id="outputCanvas"></canvas>
+        <canvas style="max-width:400px;" id="floodfillCanvas"></canvas>
         <!-- </div> -->
     <script src="./libraries/opencv/wasm/opencv_js.js"></script>
     <script>
 
         let _cv;
 
-        runKMeans = function(image, k)
+        let runKMeans = function(image, k)
         {
             _cv.cvtColor(image, image, _cv.COLOR_BGRA2BGR);
 
@@ -92,15 +92,15 @@
             return returnValue;
         };
 
-        addDottedBackground = function(source, ignoreWhereWhite) 
+        let addDottedBackground = function(source, ignoreWhereWhite) 
         {
             if (ignoreWhereWhite == null)
                 ignoreWhereWhite = new _cv.Mat.zeros(source.size(), _cv.CV_8U);
 
             let image = source.clone();
-            let spacing_rows = 16;
-            let spacing_columns = 32;
-            let size = 2;
+            let spacing_rows = 8;
+            let spacing_columns = 16;
+            let size = 1;
             let drawCircle = false;
 
             for (let r = 0; r < image.size().height; r++)
@@ -121,7 +121,7 @@
                     {
                         let point = new _cv.Point(c + spacing_columns / 2, r + spacing_rows / 2);
                         if (ignoreWhereWhite.ucharAt(point.y, point.x) != 255)
-                            _cv.circle(image, point, size, new _cv.Scalar(0, 0, 255, 255), -1, _cv.LINE_AA);
+                            _cv.circle(image, point, size, new _cv.Scalar(255, 0, 0, 255), -1, _cv.LINE_AA);
                     }
                 }
             }
@@ -130,7 +130,7 @@
 
         };
 
-        runFloodFill = function(image, floodFillImage, seedPoint) 
+        let runFloodFill = function(image, floodFillImage, seedPoint) 
         {
             let floodImage = floodFillImage;
             let floodMask = new _cv.Mat.zeros(new _cv.Size(floodImage.size().width + 2, floodImage.size().height + 2), _cv.CV_8U);
@@ -145,7 +145,7 @@
             return floodImage;
         };
 
-        loadImage = function(imageElement) {
+        let loadImage = function(imageElement) {
 
             winnie = _cv.imread(imageElement);
 
@@ -154,45 +154,64 @@
             let dotted = addDottedBackground(winnie);
             _cv.imshow("outputCanvas", dotted);
 
-            let floodFill = runKMeans(winnie, 2);
+            floodFill = runKMeans(winnie, 2);
 
             _cv.imshow("floodfillCanvas", floodFill);
-
-            document.getElementById("inputCanvas").addEventListener('click', function(event) { 
-                getCoords = function(event) {
-                    return { x: event.offsetX || event.layerX, y: event.offsetY || event.layerY };
-                }
-                let x = getCoords(event).x;
-                let y = getCoords(event).y;
-
-                let seedPoint = new _cv.Point(x, y);
-                let floodImage = runFloodFill(winnie, floodFill, seedPoint);
-                let result = addDottedBackground(winnie, floodImage);
-
-                _cv.imshow("floodfillCanvas", floodImage);
-                _cv.imshow("outputCanvas", result);
-            }, false);
         }
 
-        imageChangeHandler = function(event) {
+        let imageChangeHandler = function(event) {
             if (event.keyCode === 13) {
                 currentImageUrl = document.getElementById("imageInput").value;
                 var img = new Image();
+                img.crossOrigin = "Anonymous";
                 img.onload = function() { loadImage(img); }
                 img.src = currentImageUrl;
             }
         }
 
+        let imageClickHandler = function(event) { 
+
+            let imageWidth = document.getElementById("inputCanvas").width;
+            let renderedWidth = document.getElementById("inputCanvas").getBoundingClientRect().width;
+
+            // recalculate scaling factor (since max-width is 400px)
+            let scalingFactor = imageWidth / renderedWidth;
+
+            let getCoords = function(event) {
+                return { 
+                    x: event.offsetX || event.layerX, 
+                    y: event.offsetY || event.layerY 
+                };
+            };
+
+            let x = getCoords(event).x * scalingFactor;
+            let y = getCoords(event).y * scalingFactor;
+
+            let seedPoint = new _cv.Point(x, y);
+            let floodImage = runFloodFill(winnie, floodFill, seedPoint);
+            let result = addDottedBackground(winnie, floodImage);
+
+            let dots = winnie.clone();
+            dots.setTo(new _cv.Scalar(255,255,255));
+            dots = addDottedBackground(dots, floodImage);
+
+            _cv.imshow("floodfillCanvas", dots);
+            _cv.imshow("outputCanvas", result);
+        }
+
         postMessage({msg: 'wasm'});
         let Module = {};
         let currentImageUrl = "./build/winnie.png";
+        let floodFill = null;
         Module['onRuntimeInitialized'] = function() { 
             var img = new Image();
+            img.crossOrigin = "Anonymous";
             img.onload = function() { loadImage(img); }
             img.src = currentImageUrl;
         };
         _cv = cv(Module);
         document.getElementById("imageInput").addEventListener('keyup', imageChangeHandler);
+        document.getElementById("inputCanvas").addEventListener('click', imageClickHandler);
 
     </script>
 </body>
